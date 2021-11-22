@@ -2,8 +2,7 @@ use crate::config_file::JuliaupConfig;
 use crate::config_file::JuliaupConfigChannel;
 use crate::config_file::JuliaupConfigVersion;
 use crate::jsonstructs_versionsdb::JuliaupVersionDB;
-use crate::utils::get_juliaup_home_path;
-use crate::utils::parse_versionstring;
+use crate::utils::{get_juliaup_home_path, get_bin_dir, parse_versionstring};
 use anyhow::{anyhow, Context, Result};
 use console::style;
 use flate2::read::GzDecoder;
@@ -136,3 +135,67 @@ pub fn garbage_collect_versions(config_data: &mut JuliaupConfig) -> Result<()> {
 
     Ok(())
 }
+
+fn _remove_symlink(
+    symlink_path: &Path,
+) -> Result<()> {
+    std::fs::create_dir_all(symlink_path.parent().unwrap())?;
+
+    if symlink_path.exists() {
+        std::fs::remove_file(&symlink_path)?;
+    }
+
+    Ok(())
+}
+
+pub fn remove_symlink(
+    symlink_name: &String,
+) -> Result<()> {
+    let symlink_path = get_bin_dir()
+        .with_context(|| "Failed to retrieve binary directory while trying to create a symlink.")?
+        .join(&symlink_name);
+
+    eprintln!("{} {}.", style("Deleting symlink").cyan().bold(), symlink_name);
+
+    _remove_symlink(&symlink_path)?;
+
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn create_symlink(
+    fullversion: &String,
+    symlink_name: &String,
+) -> Result<()> {
+    let (platform, version) = parse_versionstring(fullversion).with_context(|| format!(""))?;
+
+    let child_target_fullname = format!("julia-{}", fullversion);
+
+    let target_path = get_juliaup_home_path()
+        .with_context(|| "Failed to retrieve juliaup folder while trying to create a symlink.")?
+        .join(&child_target_fullname);
+
+    let symlink_path = get_bin_dir()
+        .with_context(|| "Failed to retrieve binary directory while trying to create a symlink.")?
+        .join(&symlink_name);
+
+    _remove_symlink(&symlink_path)?;
+
+    eprintln!("{} {} for Julia {} ({}).", style("Creating symlink").cyan().bold(), symlink_name, version, platform);
+
+    std::os::unix::fs::symlink(target_path.join("bin").join("julia"), &symlink_path)?;
+
+    if let Ok(path) = std::env::var("PATH") {
+        if !path.split(":").any(|p| Path::new(p) == symlink_path) {
+            eprintln!(
+                "Symlink {} added in {}. Add this directory to the system PATH to make the command available in your shell.",
+                &symlink_name, symlink_path.display(),
+            );
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+pub fn create_symlink(_: &String, _: &String) -> Result<()> { Ok(()) }

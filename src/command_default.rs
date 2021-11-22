@@ -1,5 +1,6 @@
 use crate::config_file::*;
 use crate::versions_file::load_versions_db;
+use crate::operations::create_symlink;
 use anyhow::{bail, Context, Result};
 
 pub fn run_command_default(channel: String) -> Result<()> {
@@ -19,6 +20,14 @@ pub fn run_command_default(channel: String) -> Result<()> {
 
     save_config_db(&config_data)
         .with_context(|| "`default` command failed to save configuration db.")?;
+
+    if std::env::consts::OS != "windows" {
+        match config_data.installed_channels.get(&channel).unwrap() {
+            JuliaupConfigChannel::SystemChannel { version } =>
+                create_symlink(&version, &"julia".to_string())?,
+            _ => eprintln!("Symlink creation currently not supported for linked channels."),
+        }
+    }
 
     eprintln!("Configured the default Julia version to be '{}'.", channel);
 

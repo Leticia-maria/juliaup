@@ -43,6 +43,41 @@ pub fn get_juliaupconfig_path() -> Result<PathBuf> {
     Ok(path)
 }
 
+pub fn get_bin_dir() -> Result<PathBuf> {
+    let entry_sep = if std::env::consts::OS == "windows" {';'} else {':'};
+
+    let path = match std::env::var("JULIAUP_BIN_DIR") {
+        Ok(val) => {
+            let path = PathBuf::from(val.to_string().split(entry_sep).next().unwrap()); // We can unwrap here because even when we split an empty string we should get a first element.
+
+            if !path.is_absolute() {
+                bail!("The `JULIAUP_BIN_DIR` environment variable contains a value that resolves to an an invalid path `{}`.", path.display());
+            };
+
+            path
+        }
+        Err(_) => {
+    let path = dirs::home_dir()
+        .ok_or(anyhow!(
+            "Could not determine the path of the user home directory."
+        ))?
+        .join(".local")
+        .join("bin");
+
+            if !path.is_absolute() {
+                bail!(
+                    "The system returned an invalid home directory path `{}`.",
+                    path.display()
+                );
+            };
+
+            path
+        }
+    };
+
+    Ok(path)
+}
+
 pub fn get_arch() -> Result<String> {
     if std::env::consts::ARCH == "x86" {
         return Ok("x86".to_string());
