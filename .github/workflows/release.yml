@@ -27,18 +27,25 @@ jobs:
         include:
           - target: x86_64-pc-windows-msvc
             os: windows
+            features: dummy
           - target: x86_64-apple-darwin
             os: macos
+            features: selfupdate
           - target: x86_64-unknown-linux-gnu
             os: ubuntu
+            features: selfupdate
           - target: i686-pc-windows-msvc
             os: windows
+            features: dummy
           - target: i686-unknown-linux-gnu
             os: ubuntu
+            features: selfupdate
           - target: aarch64-unknown-linux-gnu
             os: ubuntu
+            features: selfupdate
           - target: aarch64-apple-darwin
             os: macos
+            features: selfupdate
     steps:
     - uses: actions/checkout@v2
     - uses: actions-rs/toolchain@v1
@@ -51,7 +58,7 @@ jobs:
       with:
         command: build
         use-cross: ${{ matrix.os == 'ubuntu' }}
-        args: --release --bins --target ${{matrix.target}}
+        args: --release --bins --target ${{matrix.target}} --features ${{matrix.features}}
     - uses: actions/upload-artifact@v2
       with:
         name: juliaup-${{matrix.target}}
@@ -59,7 +66,131 @@ jobs:
           target/${{matrix.target}}/release/juliaup*
           target/${{matrix.target}}/release/julialauncher*
           !target/${{matrix.target}}/release/*.d
+
+  test-juliaup:
+    runs-on: ${{ matrix.os }}-latest
+    strategy:
+      matrix:
+        target: [
+          x86_64-pc-windows-msvc,
+          x86_64-apple-darwin,
+          x86_64-unknown-linux-gnu,
+          i686-pc-windows-msvc,
+          ]
+        include:
+          - target: x86_64-pc-windows-msvc
+            os: windows
+            features: dummy
+          - target: x86_64-apple-darwin
+            os: macos
+            features: selfupdate
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu
+            features: selfupdate
+          - target: i686-pc-windows-msvc
+            os: windows
+            features: dummy
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        default: true
+        target: ${{matrix.target}}
+    - name: Test
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: --target ${{matrix.target}} --features ${{matrix.features}}
   
+  build-tarballs:
+    needs: [build-juliaup]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+    - name: Download Windows x86 juliaup artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: juliaup-i686-pc-windows-msvc
+        path: target/i686-pc-windows-msvc
+    - name: Download Windows x64 juliaup artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: juliaup-x86_64-pc-windows-msvc
+        path: target/x86_64-pc-windows-msvc
+    - name: Download Linux x64 juliaup artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: juliaup-x86_64-unknown-linux-gnu
+        path: target/x86_64-unknown-linux-gnu
+    - name: Download Linux x86 juliaup artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: juliaup-i686-unknown-linux-gnu
+        path: target/i686-unknown-linux-gnu
+    - name: Download MacOS x64 juliaup artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: juliaup-x86_64-apple-darwin
+        path: target/x86_64-apple-darwin
+    - name: Download MacOS aarch64 juliaup artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: juliaup-aarch64-apple-darwin
+        path: target/aarch64-apple-darwin
+    - name: Download Linux aarch64 juliaup artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: juliaup-aarch64-unknown-linux-gnu
+        path: target/aarch64-unknown-linux-gnu
+    - name: Set permissions
+      run: |
+        chmod a+rx target/x86_64-unknown-linux-gnu/juliaup
+        chmod a+rx target/x86_64-unknown-linux-gnu/julialauncher
+        chmod a+rx target/i686-unknown-linux-gnu/juliaup
+        chmod a+rx target/i686-unknown-linux-gnu/julialauncher
+        chmod a+rx target/x86_64-apple-darwin/juliaup
+        chmod a+rx target/x86_64-apple-darwin/julialauncher
+        chmod a+rx target/aarch64-apple-darwin/juliaup
+        chmod a+rx target/aarch64-apple-darwin/julialauncher
+        chmod a+rx target/aarch64-unknown-linux-gnu/juliaup
+        chmod a+rx target/aarch64-unknown-linux-gnu/julialauncher
+    - name: Export version
+      run: |
+        export VERSION=$(echo $GH_REF | sed 's:refs/tags/v::')
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+      env:
+          GH_REF: ${{ github.ref }}
+    - name: Create archives
+      run: |
+        mkdir public
+        mkdir public/bin
+
+        cd target/i686-pc-windows-msvc
+        zip ../../public/bin/juliaup-${{ env.VERSION }}-i686-pc-windows-msvc.zip ./*
+
+        cd ../../target/x86_64-pc-windows-msvc
+        zip ../../public/bin/juliaup-${{ env.VERSION }}-x86_64-pc-windows-msvc.zip ./*
+
+        cd ../../target/x86_64-unknown-linux-gnu
+        tar -czvf ../../public/bin/juliaup-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz .
+        
+        cd ../../target/i686-unknown-linux-gnu
+        tar -czvf ../../public/bin/juliaup-${{ env.VERSION }}-i686-unknown-linux-gnu.tar.gz .
+
+        cd ../../target/x86_64-apple-darwin
+        tar -czvf ../../public/bin/juliaup-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz .
+
+        cd ../../target/aarch64-apple-darwin
+        tar -czvf ../../public/bin/juliaup-${{ env.VERSION }}-aarch64-apple-darwin.tar.gz .
+
+        cd ../../target/aarch64-unknown-linux-gnu
+        tar -czvf ../../public/bin/juliaup-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz .
+    - uses: actions/upload-artifact@v2
+      with:
+        name: juliaup-tarballs
+        path: public/bin/*
+
   build-msix:
     needs: build-juliaup
     runs-on: windows-latest
@@ -120,135 +251,45 @@ jobs:
         name: storepackage
         path: storepackage\*.*
 
-
-  deploy-github-release:
-    needs: [build-juliaup]
+  deploy-github-release-binaries:
+    needs: [build-tarballs,test-juliaup]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
-    - name: Download Windows x86 juliaup artifact
+    - name: Download tarball artifacts
       uses: actions/download-artifact@v2
       with:
-        name: juliaup-i686-pc-windows-msvc
-        path: target/i686-pc-windows-msvc
-    - name: Download Windows x64 juliaup artifact
-      uses: actions/download-artifact@v2
-      with:
-        name: juliaup-x86_64-pc-windows-msvc
-        path: target/x86_64-pc-windows-msvc
-    - name: Download Linux x64 juliaup artifact
-      uses: actions/download-artifact@v2
-      with:
-        name: juliaup-x86_64-unknown-linux-gnu
-        path: target/x86_64-unknown-linux-gnu
-    - name: Download Linux x86 juliaup artifact
-      uses: actions/download-artifact@v2
-      with:
-        name: juliaup-i686-unknown-linux-gnu
-        path: target/i686-unknown-linux-gnu
-    - name: Download MacOS x64 juliaup artifact
-      uses: actions/download-artifact@v2
-      with:
-        name: juliaup-x86_64-apple-darwin
-        path: target/x86_64-apple-darwin
-    - name: Download MacOS aarch64 juliaup artifact
-      uses: actions/download-artifact@v2
-      with:
-        name: juliaup-aarch64-apple-darwin
-        path: target/aarch64-apple-darwin
-    - name: Download Linux aarch64 juliaup artifact
-      uses: actions/download-artifact@v2
-      with:
-        name: juliaup-aarch64-unknown-linux-gnu
-        path: target/aarch64-unknown-linux-gnu
-    - name: Set permissions
-      run: |
-        chmod a+rx target/x86_64-unknown-linux-gnu/juliaup
-        chmod a+rx target/x86_64-unknown-linux-gnu/julialauncher
-        chmod a+rx target/i686-unknown-linux-gnu/juliaup
-        chmod a+rx target/i686-unknown-linux-gnu/julialauncher
-        chmod a+rx target/x86_64-apple-darwin/juliaup
-        chmod a+rx target/x86_64-apple-darwin/julialauncher
-        chmod a+rx target/aarch64-apple-darwin/juliaup
-        chmod a+rx target/aarch64-apple-darwin/julialauncher
-        chmod a+rx target/aarch64-unknown-linux-gnu/juliaup
-        chmod a+rx target/aarch64-unknown-linux-gnu/julialauncher
-    - name: Export version
-      run: |
-        export VERSION=$(echo $GH_REF | sed 's:refs/tags/v::')
-        echo "VERSION=$VERSION" >> $GITHUB_ENV
-      env:
-          GH_REF: ${{ github.ref }}
-    - name: Rename folders
-      run: |
-        mv ./target/i686-pc-windows-msvc ./target/juliaup-${{ env.VERSION }}-i686-pc-windows-msvc
-        mv ./target/x86_64-pc-windows-msvc ./target/juliaup-${{ env.VERSION }}-x86_64-pc-windows-msvc
-        mv ./target/x86_64-unknown-linux-gnu ./target/juliaup-${{ env.VERSION }}-x86_64-unknown-linux-gnu
-        mv ./target/i686-unknown-linux-gnu ./target/juliaup-${{ env.VERSION }}-i686-unknown-linux-gnu
-        mv ./target/x86_64-apple-darwin ./target/juliaup-${{ env.VERSION }}-x86_64-apple-darwin
-        mv ./target/aarch64-apple-darwin ./target/juliaup-${{ env.VERSION }}-aarch64-apple-darwin
-        mv ./target/aarch64-unknown-linux-gnu ./target/juliaup-${{ env.VERSION }}-aarch64-unknown-linux-gnu
-    - name: Archive Windows x86 juliaup
-      uses: thedoctor0/zip-release@master
-      with:
-        type: 'zip'
-        filename: 'juliaup-${{ env.VERSION }}-i686-pc-windows-msvc.zip'
-        directory: target
-        path: juliaup-${{ env.VERSION }}-i686-pc-windows-msvc
-    - name: Archive Windows x64 juliaup
-      uses: thedoctor0/zip-release@master
-      with:
-        type: 'zip'
-        filename: 'juliaup-${{ env.VERSION }}-x86_64-pc-windows-msvc.zip'
-        directory: target
-        path: juliaup-${{ env.VERSION }}-x86_64-pc-windows-msvc
-    - name: Archive Linux x64 juliaup
-      uses: thedoctor0/zip-release@master
-      with:
-        type: 'tar'
-        filename: 'juliaup-${{ env.VERSION }}-x86_64-unknown-linux-gnu.tar.gz'
-        directory: target
-        path: juliaup-${{ env.VERSION }}-x86_64-unknown-linux-gnu
-    - name: Archive Linux x86 juliaup
-      uses: thedoctor0/zip-release@master
-      with:
-        type: 'tar'
-        filename: 'juliaup-${{ env.VERSION }}-i686-unknown-linux-gnu.tar.gz'
-        directory: target
-        path: juliaup-${{ env.VERSION }}-i686-unknown-linux-gnu
-    - name: Archive MacOS x64 juliaup
-      uses: thedoctor0/zip-release@master
-      with:
-        type: 'tar'
-        filename: 'juliaup-${{ env.VERSION }}-x86_64-apple-darwin.tar.gz'
-        directory: target
-        path: juliaup-${{ env.VERSION }}-x86_64-apple-darwin
-    - name: Archive MacOS aarch64 juliaup
-      uses: thedoctor0/zip-release@master
-      with:
-        type: 'tar'
-        filename: 'juliaup-${{ env.VERSION }}-aarch64-apple-darwin.tar.gz'
-        directory: target
-        path: juliaup-${{ env.VERSION }}-aarch64-apple-darwin
-    - name: Archive Linux aarch64 juliaup
-      uses: thedoctor0/zip-release@master
-      with:
-        type: 'tar'
-        filename: 'juliaup-${{ env.VERSION }}-aarch64-unknown-linux-gnu.tar.gz'
-        directory: target
-        path: juliaup-${{ env.VERSION }}-aarch64-unknown-linux-gnu
-    - name: Move archives
-      run: |
-        mv ./target/*.zip ./
-        mv ./target/*.tar.gz ./
+        name: juliaup-tarballs
+        path: public/bin
     - name: Release
       uses: ncipollo/release-action@v1
       with:
-        artifacts: "*.zip,*.tar.gz"
+        artifacts: "public/bin/*.zip,public/bin/*.tar.gz"
         token: ${{ secrets.GITHUB_TOKEN }}
 
+  deploy-s3-release-binaries:
+    needs: [build-tarballs,test-juliaup]
+    runs-on: ubuntu-latest
+    environment: dev-channel
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+    - name: Download tarball artifacts
+      uses: actions/download-artifact@v2
+      with:
+        name: juliaup-tarballs
+        path: public/bin
+    - name: Upload to S3
+      uses: jakejarvis/s3-sync-action@master
+      with:
+        args: --acl public-read --cache-control public,max-age=2678400 --metadata-directive REPLACE
+      env:
+        AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        SOURCE_DIR: 'public'
+
   deploy-dev-channel-winstore:
-    needs: [build-storepayload]
+    needs: [build-storepayload,test-juliaup]
     environment: dev-channel
     runs-on: windows-latest
     if: startsWith(github.ref, 'refs/tags/')
@@ -270,7 +311,7 @@ jobs:
         Update-ApplicationFlightSubmission -ReplacePackages -AppId 9NJNWW8PVKMN -FlightId 2e2f9fe8-3950-4273-b80d-7f752296ca86 -SubmissionDataPath ".\Upload.json" -PackagePath ".\Upload.zip" -AutoCommit -Force
 
   deploy-releasepreview-channel-winstore:
-    needs: [build-storepayload]
+    needs: [build-storepayload,test-juliaup]
     environment: release-preview-channel
     runs-on: windows-latest
     if: startsWith(github.ref, 'refs/tags/')
@@ -292,7 +333,7 @@ jobs:
         Update-ApplicationFlightSubmission -ReplacePackages -AppId 9NJNWW8PVKMN -FlightId 732b234a-7ea9-4b65-8c9f-b9d9eaefb578 -SubmissionDataPath ".\Upload.json" -PackagePath ".\Upload.zip" -AutoCommit -Force
 
   deploy-release-channel-winstore:
-    needs: [build-storepayload]
+    needs: [build-storepayload,test-juliaup]
     environment: release-channel
     runs-on: windows-latest
     if: startsWith(github.ref, 'refs/tags/')
@@ -314,7 +355,7 @@ jobs:
         Update-ApplicationSubmission -ReplacePackages -AppId 9NJNWW8PVKMN -SubmissionDataPath ".\Upload.json" -PackagePath ".\Upload.zip" -AutoCommit -Force
 
   deploy-release-channel-aur:
-    needs: build-juliaup
+    needs: [build-juliaup,test-juliaup]
     environment: release-preview-channel
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
@@ -348,7 +389,7 @@ jobs:
           git push origin master
 
   deploy-dev-channel-s3:
-    needs: deploy-github-release
+    needs: [deploy-s3-release-binaries,test-juliaup]
     environment: dev-channel
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
@@ -366,16 +407,14 @@ jobs:
       - name: Copy shell script
         run: |
           cp deploy/shellscript/juliaup-init.sh public/juliaup-init-dev.sh
-          echo "version is $VERSION"
           sed -i -e "s/THISISREPLACEDWITHREALVERSIONINGITHUBWORKFLOW/$VERSION/g" public/juliaup-init-dev.sh
-          echo "Now showing content of the modified file:"
-          cat public/juliaup-init-dev.sh
+          sed -i -e 's|THISISREPLACEDWITHCHANNELCONFIGINGITHUBWORKFLOW|$_bindir/juliaup selfchannel dev|g' public/juliaup-init-dev.sh
         env:
           VERSION: ${{ env.VERSION }}
       - name: Upload to S3
         uses: jakejarvis/s3-sync-action@master
         with:
-          args: --acl public-read
+          args: --acl public-read --cache-control public,max-age=0 --metadata-directive REPLACE
         env:
           AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -383,7 +422,7 @@ jobs:
           SOURCE_DIR: 'public'
 
   deploy-releasepreview-channel-s3:
-    needs: deploy-github-release
+    needs: [deploy-s3-release-binaries,test-juliaup]
     environment: release-preview-channel
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
@@ -400,14 +439,15 @@ jobs:
           GH_REF: ${{ github.ref }}
       - name: Copy shell script
         run: |
-          cp deploy/shellscript/juliaup-init.sh public/juliaup-init-release-preview.sh
-          sed -i -e "s/THISISREPLACEDWITHREALVERSIONINGITHUBWORKFLOW/$VERSION/g" public/juliaup-init-release-preview.sh
+          cp deploy/shellscript/juliaup-init.sh public/juliaup-init-releasepreview.sh
+          sed -i -e "s/THISISREPLACEDWITHREALVERSIONINGITHUBWORKFLOW/$VERSION/g" public/juliaup-init-releasepreview.sh
+          sed -i -e 's|THISISREPLACEDWITHCHANNELCONFIGINGITHUBWORKFLOW|$_bindir/juliaup selfchannel releasepreview|g' public/juliaup-init-releasepreview.sh
         env:
           VERSION: ${{ env.VERSION }}
       - name: Upload to S3
         uses: jakejarvis/s3-sync-action@master
         with:
-          args: --acl public-read
+          args: --acl public-read --cache-control public,max-age=300 --metadata-directive REPLACE
         env:
           AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -415,7 +455,7 @@ jobs:
           SOURCE_DIR: 'public'
 
   deploy-release-channel-s3:
-    needs: deploy-github-release
+    needs: [deploy-s3-release-binaries,test-juliaup]
     environment: release-channel
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
@@ -435,12 +475,13 @@ jobs:
         run: |
           cp deploy/shellscript/juliaup-init.sh public/juliaup-init.sh
           sed -i -e "s/THISISREPLACEDWITHREALVERSIONINGITHUBWORKFLOW/$VERSION/g" public/juliaup-init.sh
+          sed -i -e 's|THISISREPLACEDWITHCHANNELCONFIGINGITHUBWORKFLOW|$_bindir/juliaup selfchannel release|g' public/juliaup-init.sh
         env:
           VERSION: ${{ env.VERSION }}
       - name: Upload to S3
         uses: jakejarvis/s3-sync-action@master
         with:
-          args: --acl public-read
+          args: --acl public-read --cache-control public,max-age=3600 --metadata-directive REPLACE
         env:
           AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}

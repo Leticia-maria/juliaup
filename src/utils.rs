@@ -1,6 +1,7 @@
 use anyhow::{anyhow, bail, Context, Result};
 use semver::Version;
 use std::path::PathBuf;
+use url::Url;
 
 pub fn get_juliaup_home_path() -> Result<PathBuf> {
     let entry_sep = if std::env::consts::OS == "windows" {';'} else {':'};
@@ -13,7 +14,7 @@ pub fn get_juliaup_home_path() -> Result<PathBuf> {
                 bail!("The `JULIA_DEPOT_PATH` environment variable contains a value that resolves to an an invalid path `{}`.", path.display());
             };
 
-            path
+            path.join("juliaup")
         }
         Err(_) => {
     let path = dirs::home_dir()
@@ -35,6 +36,19 @@ pub fn get_juliaup_home_path() -> Result<PathBuf> {
     };
 
     Ok(path)
+}
+
+pub fn get_juliaserver_base_url() -> Result<Url> {
+    let base_url = if let Ok(val) = std::env::var("JULIAUP_SERVER") { 
+        val
+     } else {
+        "https://julialang-s3.julialang.org".to_string() 
+    };
+
+    let parsed_url = Url::parse(&base_url)
+        .with_context(|| format!("Failed to parse the value of JULIAUP_SERVER '{}' as a uri.", base_url))?;
+
+    Ok(parsed_url)
 }
 
 pub fn get_juliaupconfig_path() -> Result<PathBuf> {
@@ -83,6 +97,8 @@ pub fn get_arch() -> Result<String> {
         return Ok("x86".to_string());
     } else if std::env::consts::ARCH == "x86_64" {
         return Ok("x64".to_string());
+    } else if std::env::consts::ARCH == "aarch64" {
+        return Ok("aarch64".to_string());
     }
 
     bail!("Running on an unknown arch: {}.", std::env::consts::ARCH)
@@ -119,7 +135,13 @@ mod tests {
     fn test_parse_versionstring() {
         let s = "1.1.1";
         let (p,v) = parse_versionstring(&s.to_owned()).unwrap();
-        assert_eq!(p, "x64");
+        let arch = match std::env::consts::ARCH {
+            "x86" => "x86",
+            "x86_64" => "x64",
+            "aarch64" => "aarch64",
+            _ => ""
+        };
+        assert_eq!(p, arch);
         assert_eq!(v, Version::new(1, 1, 1));
 
         let s = "1.1.1~x86";

@@ -24,7 +24,7 @@ fi
 set -u
 
 # If JULIAUP_UPDATE_ROOT is unset or empty, default it.
-JULIAUP_UPDATE_ROOT="https://github.com/JuliaLang/juliaup/releases/download/"
+JULIAUP_UPDATE_ROOT="${JULIAUP_UPDATE_ROOT:-https://julialang-s3.julialang.org}"
 JULIAUP_INSTALL_DIR="${HOME}/.juliaup"
 JULIAUP_VERSION="THISISREPLACEDWITHREALVERSIONINGITHUBWORKFLOW"
 
@@ -90,7 +90,7 @@ main() {
             ;;
     esac
 
-    local _url="${JULIAUP_UPDATE_ROOT}/v${VERSION}/juliaup-${VERSION}-${_arch}${_ext}"
+    local _url="${JULIAUP_UPDATE_ROOT}/juliaup/bin/juliaup-${JULIAUP_VERSION}-${_arch}${_ext}"
 
     local _dir
     local _tarout
@@ -232,6 +232,8 @@ main() {
         ignore "$_bindir/julialauncher" -e nothing
     fi
     local _retval=$?
+
+    THISISREPLACEDWITHCHANNELCONFIGINGITHUBWORKFLOW
 
     if [ "$_addtopath" = "yes" ]; then
         add_path_to_bash $_bindir

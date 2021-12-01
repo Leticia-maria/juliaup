@@ -34,6 +34,8 @@ pub struct JuliaupConfig {
     pub installed_versions: HashMap<String, JuliaupConfigVersion>,
     #[serde(rename = "InstalledChannels")]
     pub installed_channels: HashMap<String, JuliaupConfigChannel>,
+    #[serde(rename = "JuliaupChannel", skip_serializing_if = "Option::is_none")]
+    pub juliaup_channel: Option<String>,
     #[serde(rename = "CreateSymlinks", default)]
     pub create_symlinks: bool,
 }
@@ -52,6 +54,7 @@ pub fn load_config_db() -> Result<JuliaupConfig> {
                     default: None,
                     installed_versions: HashMap::new(),
                     installed_channels: HashMap::new(),
+                    juliaup_channel: None,
                     create_symlinks: false,
                 })
             },
@@ -74,10 +77,14 @@ pub fn load_config_db() -> Result<JuliaupConfig> {
 }
 
 pub fn save_config_db(config_data: &JuliaupConfig) -> Result<()> {
-    let path =
-        get_juliaupconfig_path().with_context(|| "Failed to determine configuration file path.")?;
+    let path = get_juliaupconfig_path()
+        .with_context(|| "Failed to determine configuration file path.")?;
 
     let display = path.display();
+    let parent_path_display = path.parent().unwrap().display();
+
+    std::fs::create_dir_all(path.parent().unwrap())
+        .with_context(|| format!("Failed to create juliaup homedir '{}' from save_config_db.", parent_path_display))?;
 
     let file = File::create(&path).with_context(|| {
         format!(

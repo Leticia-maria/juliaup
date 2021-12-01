@@ -13,7 +13,7 @@ fn update_channel(config_db: &mut JuliaupConfig, channel: &String, version_db: &
 
     match current_version {
         JuliaupConfigChannel::SystemChannel {version} => {
-            if std::env::consts::OS != "windows" && config_data.create_symlinks {
+            if std::env::consts::OS != "windows" && config_db.create_symlinks {
                 create_symlink(&version, &format!("julia-{}", channel))?;
             }
 

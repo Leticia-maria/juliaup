@@ -20,9 +20,9 @@ use serde_json::Value;
 fn produce_version_db() -> Result<JuliaupVersionDB> {
     let mut original_available_versions: Vec<Version> = Vec::new();
 
-    let lts_version = Version::parse("1.0.5")?;
-    let beta_version = Version::parse("1.7.0-rc3")?;
-    let rc_version = Version::parse("1.7.0-rc3")?;
+    let lts_version = Version::parse("1.6.4")?;
+    let beta_version = Version::parse("1.7.0")?;
+    let rc_version = Version::parse("1.7.0")?;
 
     original_available_versions.push(Version::parse("0.7.0")?);
     original_available_versions.push(Version::parse("1.0.0")?);
@@ -56,6 +56,7 @@ fn produce_version_db() -> Result<JuliaupVersionDB> {
     original_available_versions.push(Version::parse("1.7.0-rc1")?);
     original_available_versions.push(Version::parse("1.7.0-rc2")?);
     original_available_versions.push(Version::parse("1.7.0-rc3")?);
+    original_available_versions.push(Version::parse("1.7.0")?);
 
     let target_arch = std::env::var("CARGO_CFG_TARGET_ARCH")?;
     let target_os = std::env::var("CARGO_CFG_TARGET_OS")?;
@@ -69,45 +70,45 @@ fn produce_version_db() -> Result<JuliaupVersionDB> {
         if target_os == "windows" && target_arch == "x86_64" {
             db.available_versions.insert(
                 format!("{}+0~x64", v),
-                JuliaupVersionDBVersion {url: format!("https://julialang-s3.julialang.org/bin/winnt/x64/{}.{}/julia-{}-win64.tar.gz", v.major, v.minor, v)}
+                JuliaupVersionDBVersion {url_path: format!("bin/winnt/x64/{}.{}/julia-{}-win64.tar.gz", v.major, v.minor, v)}
             );
             db.available_versions.insert(
                 format!("{}+0~x86", v),
-                JuliaupVersionDBVersion {url: format!("https://julialang-s3.julialang.org/bin/winnt/x86/{}.{}/julia-{}-win32.tar.gz", v.major, v.minor, v)}
+                JuliaupVersionDBVersion {url_path: format!("bin/winnt/x86/{}.{}/julia-{}-win32.tar.gz", v.major, v.minor, v)}
             );
         } else if target_os == "windows" && target_arch == "x86" {
             db.available_versions.insert(
                 format!("{}+0~x86", v),
-                JuliaupVersionDBVersion {url: format!("https://julialang-s3.julialang.org/bin/winnt/x86/{}.{}/julia-{}-win32.tar.gz", v.major, v.minor, v)}
+                JuliaupVersionDBVersion {url_path: format!("bin/winnt/x86/{}.{}/julia-{}-win32.tar.gz", v.major, v.minor, v)}
             );
         } else if target_os == "linux" && target_arch == "x86_64" {
             db.available_versions.insert(
                 format!("{}+0~x64", v),
-                JuliaupVersionDBVersion {url: format!("https://julialang-s3.julialang.org/bin/linux/x64/{}.{}/julia-{}-linux-x86_64.tar.gz", v.major, v.minor, v)}
+                JuliaupVersionDBVersion {url_path: format!("bin/linux/x64/{}.{}/julia-{}-linux-x86_64.tar.gz", v.major, v.minor, v)}
             );
             db.available_versions.insert(
                 format!("{}+0~x86", v),
-                JuliaupVersionDBVersion {url: format!("https://julialang-s3.julialang.org/bin/linux/x86/{}.{}/julia-{}-linux-i686.tar.gz", v.major, v.minor, v)}
+                JuliaupVersionDBVersion {url_path: format!("bin/linux/x86/{}.{}/julia-{}-linux-i686.tar.gz", v.major, v.minor, v)}
             );
         } else if target_os == "linux" && target_arch == "x86" {
             db.available_versions.insert(
                 format!("{}+0~x86", v),
-                JuliaupVersionDBVersion {url: format!("https://julialang-s3.julialang.org/bin/linux/x86/{}.{}/julia-{}-linux-i686.tar.gz", v.major, v.minor, v)}
+                JuliaupVersionDBVersion {url_path: format!("bin/linux/x86/{}.{}/julia-{}-linux-i686.tar.gz", v.major, v.minor, v)}
             );
         } else if target_os == "linux" && target_arch == "aarch64" {
             db.available_versions.insert(
                 format!("{}+0~aarch64", v),
-                JuliaupVersionDBVersion {url: format!("https://julialang-s3.julialang.org/bin/linux/aarch64/{}.{}/julia-{}-linux-aarch64.tar.gz", v.major, v.minor, v)}
+                JuliaupVersionDBVersion {url_path: format!("bin/linux/aarch64/{}.{}/julia-{}-linux-aarch64.tar.gz", v.major, v.minor, v)}
             );
         } else if target_os == "macos" && target_arch == "x86_64"{
             db.available_versions.insert(
                 format!("{}+0~x64", v),
-                JuliaupVersionDBVersion {url: format!("https://julialang-s3.julialang.org/bin/mac/x64/{}.{}/julia-{}-mac64.tar.gz", v.major, v.minor, v)}
+                JuliaupVersionDBVersion {url_path: format!("bin/mac/x64/{}.{}/julia-{}-mac64.tar.gz", v.major, v.minor, v)}
             );
         } else if target_os == "macos" && target_arch == "aarch64"{
             db.available_versions.insert(
                 format!("{}+0~x64", v),
-                JuliaupVersionDBVersion {url: format!("https://julialang-s3.julialang.org/bin/mac/x64/{}.{}/julia-{}-mac64.tar.gz", v.major, v.minor, v)}
+                JuliaupVersionDBVersion {url_path: format!("bin/mac/x64/{}.{}/julia-{}-mac64.tar.gz", v.major, v.minor, v)}
             );
         } else {
             panic!("Building on this platform is currently not supported.")
@@ -657,6 +658,12 @@ fn main() -> Result<()> {
         res.set_icon("src/julia.ico");
         res.compile().unwrap();
     }
+
+    let various_constants_path = Path::new(&out_path).join("various_constants.rs");
+    std::fs::write(
+        &various_constants_path,
+        format!("pub const JULIAUP_TARGET: &str = \"{}\";", std::env::var("TARGET").unwrap())
+    ).unwrap();
 
     Ok(())
 }
