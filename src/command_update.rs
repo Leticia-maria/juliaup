@@ -13,10 +13,6 @@ fn update_channel(config_db: &mut JuliaupConfig, channel: &String, version_db: &
 
     match current_version {
         JuliaupConfigChannel::SystemChannel {version} => {
-            if std::env::consts::OS != "windows" && config_db.create_symlinks {
-                create_symlink(&version, &format!("julia-{}", channel))?;
-            }
-
             let should_version = version_db.available_channels.get(channel).ok_or(anyhow!("asdf"))?;
 
             if &should_version.version != version {
@@ -29,6 +25,10 @@ fn update_channel(config_db: &mut JuliaupConfig, channel: &String, version_db: &
                         version: should_version.version.clone(),
                     },
                 );
+            }
+
+            if std::env::consts::OS != "windows" && config_db.create_symlinks {
+                create_symlink(&should_version.version, &format!("julia-{}", channel))?;
             }
         },
         JuliaupConfigChannel::LinkedChannel {command: _, args: _} => if !ignore_linked_channel {
