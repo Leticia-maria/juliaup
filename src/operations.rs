@@ -18,6 +18,8 @@ use std::{
 };
 use tar::Archive;
 use semver::Version;
+#[cfg(not(target_os = "windows"))]
+use std::os::unix::fs::PermissionsExt;
 
 fn unpack_sans_parent<R, P>(mut archive: Archive<R>, dst: P, levels_to_skip: usize) -> Result<()>
 where
@@ -205,16 +207,9 @@ pub fn remove_symlink(
 
 #[cfg(not(target_os = "windows"))]
 pub fn create_symlink(
-    fullversion: &String,
+    channel: &JuliaupConfigChannel,
     symlink_name: &String,
 ) -> Result<()> {
-    let (platform, version) = parse_versionstring(fullversion).with_context(|| format!(""))?;
-
-    let child_target_fullname = format!("julia-{}", fullversion);
-
-    let target_path = get_juliaup_home_path()
-        .with_context(|| "Failed to retrieve juliaup folder while trying to create a symlink.")?
-        .join(&child_target_fullname);
 
     let symlink_path = get_bin_dir()
         .with_context(|| "Failed to retrieve binary directory while trying to create a symlink.")?
@@ -222,9 +217,45 @@ pub fn create_symlink(
 
     _remove_symlink(&symlink_path)?;
 
-    eprintln!("{} {} for Julia {} ({}).", style("Creating symlink").cyan().bold(), symlink_name, version, platform);
+    match channel {
+        JuliaupConfigChannel::SystemChannel { version } => {
+            let child_target_fullname = format!("julia-{}", version);
 
-    std::os::unix::fs::symlink(target_path.join("bin").join("julia"), &symlink_path)?;
+            let target_path = get_juliaup_home_path()
+                .with_context(|| "Failed to retrieve juliaup folder while trying to create a symlink.")?
+                .join(&child_target_fullname);
+
+            let (platform, version) = parse_versionstring(version).with_context(|| format!(""))?;
+
+            eprintln!("{} {} for Julia {} ({}).", style("Creating symlink").cyan().bold(), symlink_name, version, platform);
+
+            std::os::unix::fs::symlink(target_path.join("bin").join("julia"), &symlink_path)?;
+        },
+        JuliaupConfigChannel::LinkedChannel { command, args } => {
+            let formatted_args = match args {
+                Some(x) => x.join(" "),
+                None    => String::new(),
+            };
+
+            eprintln!("{} {} for `{} {}`", style("Creating shim").cyan().bold(), symlink_name, command, formatted_args);
+
+            std::fs::write(
+                &symlink_path,
+                format!(
+r#"#!/bin/sh
+{} {} "$@"
+"#,
+                    command,
+                    formatted_args,
+                ),
+            )?;
+
+            // set as executable
+            let mut perms = std::fs::metadata(&symlink_path)?.permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&symlink_path, perms)?;
+        },
+    };
 
     if let Ok(path) = std::env::var("PATH") {
         if !path.split(":").any(|p| Path::new(p) == symlink_path) {
@@ -239,4 +270,4 @@ pub fn create_symlink(
 }
 
 #[cfg(target_os = "windows")]
-pub fn create_symlink(_: &String, _: &String) -> Result<()> { Ok(()) }
+pub fn create_symlink(_: &JuliaupConfigChannel, _: &String) -> Result<()> { Ok(()) }

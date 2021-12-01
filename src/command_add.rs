@@ -41,7 +41,12 @@ pub fn run_command_add(channel: String) -> Result<()> {
         .with_context(|| format!("Failed to save configuration file from `add` command after '{}' was installed.", channel))?;
 
     if std::env::consts::OS != "windows" && config_data.create_symlinks {
-        create_symlink(&required_version, &format!("julia-{}", channel))?;
+        create_symlink(
+            &JuliaupConfigChannel::SystemChannel {
+                version: required_version.clone(),
+            },
+            &format!("julia-{}", channel),
+        )?;
     }
 
     Ok(())

@@ -1,4 +1,3 @@
-use crate::config_file::JuliaupConfigChannel;
 use crate::config_file::{load_config_db, save_config_db};
 use crate::operations::{create_symlink, remove_symlink};
 use anyhow::{bail, Context, Result};
@@ -21,22 +20,12 @@ pub fn run_command_config(property: String, value: String) -> Result<()> {
 
             if config_data.create_symlinks {
                 for (channel_name, channel) in &config_data.installed_channels {
-                    match channel {
-                        JuliaupConfigChannel::SystemChannel { version } =>
-                            create_symlink(&version, &format!("julia-{}", channel_name))?,
-                        // TODO
-                        JuliaupConfigChannel::LinkedChannel { .. } => {},
-                    };
+                    create_symlink(channel, &format!("julia-{}", channel_name))?;
                 }
             }
             else {
-                for (channel_name, channel) in &config_data.installed_channels {
-                    match channel {
-                        JuliaupConfigChannel::SystemChannel { version: _ } =>
-                            remove_symlink(&format!("julia-{}", channel_name))?,
-                        // TODO
-                        JuliaupConfigChannel::LinkedChannel { .. } => {},
-                    };
+                for (channel_name, _) in &config_data.installed_channels {
+                    remove_symlink(&format!("julia-{}", channel_name))?;
                 }
             }
         },
