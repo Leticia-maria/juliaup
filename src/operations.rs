@@ -193,7 +193,7 @@ pub fn remove_symlink(
     symlink_name: &String,
 ) -> Result<()> {
     let symlink_path = get_bin_dir()
-        .with_context(|| "Failed to retrieve binary directory while trying to create a symlink.")?
+        .with_context(|| "Failed to retrieve binary directory while trying to remove a symlink.")?
         .join(&symlink_name);
 
     eprintln!("{} {}.", style("Deleting symlink").cyan().bold(), symlink_name);
@@ -216,10 +216,7 @@ pub fn create_symlink(
         .with_context(|| "Failed to retrieve juliaup folder while trying to create a symlink.")?
         .join(&child_target_fullname);
 
-    let my_own_path = std::env::current_exe()
-        .with_context(|| "Could not determine the path of the running exe.")?;
-
-    let symlink_path = my_own_path.parent()
+    let symlink_path = get_bin_dir()
         .with_context(|| "Failed to retrieve binary directory while trying to create a symlink.")?
         .join(&symlink_name);
 
