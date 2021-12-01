@@ -1,6 +1,5 @@
 use crate::config_file::*;
 use crate::versions_file::load_versions_db;
-use crate::operations::create_symlink;
 use anyhow::{bail, Context, Result};
 
 pub fn run_command_default(channel: String) -> Result<()> {
