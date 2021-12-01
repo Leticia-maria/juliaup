@@ -71,22 +71,12 @@ pub fn get_bin_dir() -> Result<PathBuf> {
             path
         }
         Err(_) => {
-    let path = dirs::home_dir()
-        .ok_or(anyhow!(
-            "Could not determine the path of the user home directory."
-        ))?
-        .join(".local")
-        .join("bin");
-
-            if !path.is_absolute() {
-                bail!(
-                    "The system returned an invalid home directory path `{}`.",
-                    path.display()
-                );
-            };
-
-            path
-        }
+            std::env::current_exe()
+                .with_context(|| "Could not determine the path of the running exe.")?
+                .parent()
+                .ok_or_else(|| anyhow!("Could not determine parent."))?
+                .to_path_buf()
+        },
     };
 
     Ok(path)

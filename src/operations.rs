@@ -216,7 +216,10 @@ pub fn create_symlink(
         .with_context(|| "Failed to retrieve juliaup folder while trying to create a symlink.")?
         .join(&child_target_fullname);
 
-    let symlink_path = get_bin_dir()
+    let my_own_path = std::env::current_exe()
+        .with_context(|| "Could not determine the path of the running exe.")?;
+
+    let symlink_path = my_own_path.parent()
         .with_context(|| "Failed to retrieve binary directory while trying to create a symlink.")?
         .join(&symlink_name);
 
