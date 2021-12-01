@@ -42,12 +42,6 @@ pub fn run_command_add(channel: String) -> Result<()> {
 
     if std::env::consts::OS != "windows" {
         create_symlink(&required_version, &format!("julia-{}", channel))?;
-
-        if let Some(default) = config_data.default {
-            if channel == default {
-                create_symlink(&required_version, &"julia".to_string())?;
-            }
-        }
     }
 
     Ok(())
