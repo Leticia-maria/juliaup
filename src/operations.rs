@@ -232,27 +232,25 @@ pub fn create_symlink(
             std::os::unix::fs::symlink(target_path.join("bin").join("julia"), &symlink_path)?;
         },
         JuliaupConfigChannel::LinkedChannel { command, args } => {
-            let formatted_args = match args {
-                Some(x) => x.join(" "),
-                None    => String::new(),
+            let formatted_command = match args {
+                Some(x) => format!("{} {}", command, x.join(" ")),
+                None    => command.clone(),
             };
 
-            eprintln!("{} {} for `{} {}`", style("Creating shim").cyan().bold(), symlink_name, command, formatted_args);
+            eprintln!("{} {} for `{}`", style("Creating shim").cyan().bold(), symlink_name, formatted_command);
 
             std::fs::write(
                 &symlink_path,
                 format!(
 r#"#!/bin/sh
-{} {} "$@"
+{} "$@"
 "#,
-                    command,
-                    formatted_args,
+                    formatted_command,
                 ),
             )?;
 
             // set as executable
-            let mut perms = std::fs::metadata(&symlink_path)?.permissions();
-            perms.set_mode(0o755);
+            let perms = std::fs::Permissions::from_mode(0o755);
             std::fs::set_permissions(&symlink_path, perms)?;
         },
     };
